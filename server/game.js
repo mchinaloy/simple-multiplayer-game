@@ -4,13 +4,16 @@ var path = require('path');
 var io = require('socket.io');
 var ecstatic = require('ecstatic');
 
-var Player = require('./Player');
+var shooter;
+var defender;
 
 var socket;
-var port = 8080;
-var players = [];
+var playerCount = 0;
+var port = 8000;
 
-// Create and start the http server
+var log4js = require('log4js');
+var logger = log4js.getLogger();
+
 var server = http.createServer(
     ecstatic({root: path.resolve(__dirname, '../public')})
 ).listen(port, function (err) {
@@ -21,6 +24,8 @@ var server = http.createServer(
 });
 
 function init() {
+    log4js.replaceConsole();
+
     // Attach Socket.IO to server
     socket = io.listen(server);
 
@@ -32,26 +37,44 @@ function init() {
         // Restrict log output
         socket.set('log level', 2)
     });
-    setEventHandlers()
+    setEventHandlers();
+    logger.info("Finished socket.io init");
 }
 
 function setEventHandlers() {
-    socket.sockets.on('connect', onSocketConnection)
+    socket.sockets.on('connection', onSocketConnection);
+    logger.info("Event Handlers configured")
 }
 
 function onSocketConnection(client) {
-    console.log("New client has connected: " + client);
+    logger.info("New client has connected: " + client);
 
-    // Listen for new player message
-    client.on('newPlayer', onNewPlayer)
+    if(playerCount > 0) {
+        defender = client.id;
+        logger.info("Player given role of defender");
+        this.emit("roleAssigned", {id: client.id, role: "defender"});
+    } else {
+        shooter = client.id;
+        logger.info("Player given role of shooter");
+        this.emit("roleAssigned", {id: client.id, role:"shooter"});
+    }
+
+    playerCount++;
+    client.on('newPlayer', onNewPlayer);
+    client.on("movePlayer", onMovePlayer);
+    client.on("shooterFired", onShooterFired);
 }
 
-// New player has joined
 function onNewPlayer (data) {
-    // Create a new player
-    var newPlayer = new Player(data.x, data.y);
-    newPlayer.id = this.id;
+    logger.info("New remote player joined!");
+}
 
-    // Add new player to the players array
-    players.push(newPlayer)
+function onMovePlayer(data) {
+    // Broadcast updated position to connected socket clients
+    this.broadcast.emit('movePlayer', {role: data.role, x: data.x, y: data.y})
+}
+
+function onShooterFired() {
+    // Broadcast updated position to connected socket clients
+    this.broadcast.emit('shooterFired')
 }
