@@ -1,9 +1,14 @@
-var socket;
 var playerOne;
 var playerTwo;
 var score = 0;
 var role = "shooter";
 var playerOneBulletGroup;
+var socket;
+var paddleLeft_up;
+var paddleLeft_down;
+var paddleLeft_fire;
+var randomNumberCount = 0;
+var randomNumbers = [];
 
 var fontAssets = {
     counterFontStyle: {font: '20px Arial', fill: '#FFFFFF', align: 'center'},
@@ -52,258 +57,263 @@ var asteroidProperties = {
     asteroidMedium: {minVelocity: 50, maxVelocity: 200, minAngularVelocity: 0, maxAngularVelocity: 200, score: 50}
 };
 
-var mainState = function (game) {
-    this.paddleLeft_up;
-    this.paddleLeft_down;
-    this.paddleLeft_fire;
+var tf_lives;
+var tf_score;
+var paddleLives = paddleProperties.lives;
+var paddleGroup;
+var asteroidGroup;
+var asteroidCount = asteroidProperties.startingAsteroids;
 
-    this.tf_lives;
-    this.tf_score;
-    this.paddleLives = paddleProperties.lives;
+var game = new Phaser.Game(gameProperties.screenWidth, gameProperties.screenHeight, Phaser.AUTO, 'gameDiv',
+    {preload: preload, create: create, update: update});
 
-    this.paddleGroup;
-    playerOneBulletGroup;
-    this.asteroidGroup;
-    this.asteroidsCount = asteroidProperties.startingAsteroids;
-};
+function preload() {
+    game.load.image(graphicAssets.paddle.name, graphicAssets.paddle.URL);
+    game.load.image(graphicAssets.bullet.name, graphicAssets.bullet.URL);
+    game.load.image(graphicAssets.asteroidLarge.name, graphicAssets.asteroidLarge.URL);
+    game.load.image(graphicAssets.asteroidMedium.name, graphicAssets.asteroidMedium.URL);
+}
 
-// The main state that contains our game. Think of states like pages or screens such as the splash screen, main menu, game screen, high scores, inventory, etc.
-mainState.prototype = {
+function create() {
+    socket = io.connect('http://192.168.1.13:8000');
+    initGraphics();
+    initPhysics();
+    initKeyboard();
+    setEventHandlers();
+}
 
-    preload: function () {
-        game.load.image(graphicAssets.paddle.name, graphicAssets.paddle.URL);
-        game.load.image(graphicAssets.bullet.name, graphicAssets.bullet.URL);
-        game.load.image(graphicAssets.asteroidLarge.name, graphicAssets.asteroidLarge.URL);
-        game.load.image(graphicAssets.asteroidMedium.name, graphicAssets.asteroidMedium.URL);
-    },
+function setEventHandlers() {
+    socket.on("connect", onSocketConnected);
+    socket.on("disconnect", onSocketDisconnect);
+    socket.on("newPlayer", onNewPlayer);
+    socket.on("movePlayer", onMovePlayer);
+    socket.on("shooterFired", onShooterFired);
+    socket.on("roleAssigned", onRoleAssigned);
+    socket.on("startGame", startGame);
+}
 
-    create: function () {
-        socket = io.connect('http://192.168.1.13:8000');
-        this.initGraphics();
-        this.initPhysics();
-        this.initKeyboard();
-        this.resetAsteroids();
-        this.setEventHandlers();
-    },
+function update() {
+    asteroidGroup.forEachExists(checkBoundaries, this);
+    movePlayer();
+    fire();
 
-    update: function () {
-        this.asteroidGroup.forEachExists(this.checkBoundaries, this);
-        this.movePlayer();
-        this.fire();
+    game.physics.arcade.overlap(playerOneBulletGroup, asteroidGroup, asteroidCollision, null, this);
+    game.physics.arcade.overlap(playerOne, asteroidGroup, asteroidCollision, null, this);
+    game.physics.arcade.overlap(playerTwo, asteroidGroup, blockAsteroid, null, this);
+}
 
-        game.physics.arcade.overlap(playerOneBulletGroup, this.asteroidGroup, this.asteroidCollision, null, this);
-        game.physics.arcade.overlap(playerOne, this.asteroidGroup, this.asteroidCollision, null, this);
-        game.physics.arcade.overlap(playerTwo, this.asteroidGroup, this.blockAsteroid, null, this);
-    },
+function initPhysics() {
+    paddleGroup = game.add.group();
+    paddleGroup.enableBody = true;
+    paddleGroup.physicsBodyType = Phaser.Physics.ARCADE;
 
-    initPhysics: function () {
-        this.paddleGroup = game.add.group();
-        this.paddleGroup.enableBody = true;
-        this.paddleGroup.physicsBodyType = Phaser.Physics.ARCADE;
+    paddleGroup.add(playerOne);
+    paddleGroup.add(playerTwo);
 
-        this.paddleGroup.add(playerOne);
-        this.paddleGroup.add(playerTwo);
+    paddleGroup.setAll('checkWorldBounds', true);
+    paddleGroup.setAll('body.collideWorldBounds', true);
+    paddleGroup.setAll('body.immovable', true);
 
-        this.paddleGroup.setAll('checkWorldBounds', true);
-        this.paddleGroup.setAll('body.collideWorldBounds', true);
-        this.paddleGroup.setAll('body.immovable', true);
+    playerOneBulletGroup = game.add.group();
+    playerOneBulletGroup.enableBody = true;
+    playerOneBulletGroup.physicsBodyType = Phaser.Physics.ARCADE;
+    playerOneBulletGroup.createMultiple(30, graphicAssets.bullet.name);
 
-        playerOneBulletGroup = game.add.group();
-        playerOneBulletGroup.enableBody = true;
-        playerOneBulletGroup.physicsBodyType = Phaser.Physics.ARCADE;
-        playerOneBulletGroup.createMultiple(30, graphicAssets.bullet.name);
+    asteroidGroup = game.add.group();
+    asteroidGroup.enableBody = true;
+    asteroidGroup.physicsBodyType = Phaser.Physics.ARCADE;
+}
 
-        this.asteroidGroup = game.add.group();
-        this.asteroidGroup.enableBody = true;
-        this.asteroidGroup.physicsBodyType = Phaser.Physics.ARCADE;
-    },
+function initGraphics() {
+    playerOne = game.add.sprite(gameProperties.paddleLeft_x, game.world.centerY, graphicAssets.paddle.name);
+    playerOne.anchor.set(0.5, 0.5);
+    playerTwo = game.add.sprite(game.world.centerX, game.world.centerY, graphicAssets.paddle.name);
+    playerTwo.anchor.set(0.5, 0.5);
+    tf_lives = game.add.text(20, 10, paddleProperties.lives, fontAssets.counterFontStyle);
+    tf_score = game.add.text(gameProperties.screenWidth - 20, 10, "0", fontAssets.counterFontStyle);
+    tf_score.align = 'right';
+    tf_score.anchor.set(1, 0);
+}
 
-    initGraphics: function () {
-        playerOne = game.add.sprite(gameProperties.paddleLeft_x, game.world.centerY, graphicAssets.paddle.name);
-        playerOne.anchor.set(0.5, 0.5);
-        playerTwo = game.add.sprite(game.world.centerX, game.world.centerY, graphicAssets.paddle.name);
-        playerTwo.anchor.set(0.5, 0.5);
-        this.tf_lives = game.add.text(20, 10, paddleProperties.lives, fontAssets.counterFontStyle);
-        this.tf_score = game.add.text(gameProperties.screenWidth - 20, 10, "0", fontAssets.counterFontStyle);
-        this.tf_score.align = 'right';
-        this.tf_score.anchor.set(1, 0);
-    },
+function initKeyboard() {
+    paddleLeft_up = game.input.keyboard.addKey(Phaser.Keyboard.UP);
+    paddleLeft_down = game.input.keyboard.addKey(Phaser.Keyboard.DOWN);
+    paddleLeft_fire = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
+}
 
-    initKeyboard: function () {
-        this.paddleLeft_up = game.input.keyboard.addKey(Phaser.Keyboard.UP);
-        this.paddleLeft_down = game.input.keyboard.addKey(Phaser.Keyboard.DOWN);
-        this.paddleLeft_fire = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
-    },
-
-    movePlayer: function () {
-        if (role == "shooter") {
-            if (this.paddleLeft_up.isDown) {
-                playerOne.body.velocity.y = -gameProperties.paddleVelocity;
-            }
-            else if (this.paddleLeft_down.isDown) {
-                playerOne.body.velocity.y = gameProperties.paddleVelocity;
-            } else {
-                playerOne.body.velocity.y = 0;
-            }
-            socket.emit('movePlayer', {role: "shooter", x: playerOne.x, y: playerOne.y})
+function movePlayer() {
+    if (role == "shooter") {
+        if (paddleLeft_up.isDown) {
+            playerOne.body.velocity.y = -gameProperties.paddleVelocity;
+        }
+        else if (paddleLeft_down.isDown) {
+            playerOne.body.velocity.y = gameProperties.paddleVelocity;
         } else {
-            if (this.paddleLeft_up.isDown) {
-                playerTwo.body.velocity.y = -gameProperties.paddleVelocity;
-            }
-            else if (this.paddleLeft_down.isDown) {
-                playerTwo.body.velocity.y = gameProperties.paddleVelocity;
-            } else {
-                playerTwo.body.velocity.y = 0;
-            }
-            socket.emit('movePlayer', {role: "defender", x: playerTwo.x, y: playerTwo.y})
+            playerOne.body.velocity.y = 0;
         }
-    },
-
-    fire: function () {
-        if (this.paddleLeft_fire.isDown && role == "shooter" && this.paddleLives > 0) {
-            var bullet = playerOneBulletGroup.getFirstExists(false);
-
-            if (bullet) {
-                bullet.reset(playerOne.x + 8, playerOne.y);
-                bullet.body.velocity.x = 400;
-                bullet.lifespan = bulletProperties.lifeSpan;
-            }
-            socket.emit('shooterFired');
+        socket.emit('movePlayer', {role: "shooter", x: playerOne.x, y: playerOne.y})
+    } else {
+        if (paddleLeft_up.isDown) {
+            playerTwo.body.velocity.y = -gameProperties.paddleVelocity;
         }
-    },
-
-    createAsteroid: function (x, y, size, pieces) {
-        if (pieces === undefined) {
-            pieces = 1;
-        }
-        for (var i = 0; i < pieces; i++) {
-            var asteroid = this.asteroidGroup.create(x, y, size);
-            asteroid.reset(x, y);
-            asteroid.body.velocity.x = -200;
-        }
-    },
-
-    resetAsteroids: function () {
-        for (var i = 0; i < this.asteroidsCount; i++) {
-            var x;
-            var y;
-
-            x = gameProperties.screenWidth;
-            y = Math.random() * game.world.centerY;
-
-            this.createAsteroid(x, y, graphicAssets.asteroidLarge.name);
-        }
-    },
-
-    blockAsteroid: function (target, asteroid) {
-        asteroid.kill();
-        this.splitAsteroid(asteroid);
-        this.updateScore(asteroidProperties[asteroid.key].score);
-    },
-
-    asteroidCollision: function (target, asteroid) {
-        target.kill();
-        asteroid.kill();
-        this.splitAsteroid(asteroid);
-
-        if (target.key == graphicAssets.paddle.name) {
-            this.destroyPaddle();
-        }
-        this.updateScore(asteroidProperties[asteroid.key].score);
-    },
-
-    destroyPaddle: function () {
-        this.paddleLives--;
-        this.tf_lives.text = this.paddleLives;
-        if (this.paddleLives) {
-            this.resetPaddle();
-        }
-    },
-
-    resetPaddle: function () {
-        playerOne.reset(gameProperties.paddleLeft_x, game.world.centerY);
-    },
-
-    splitAsteroid: function (asteroid) {
-        if (asteroidProperties[asteroid.key].nextSize) {
-            this.createAsteroid(gameProperties.screenWidth, Math.random() * gameProperties.screenHeight, asteroidProperties[asteroid.key].nextSize, asteroidProperties[asteroid.key].pieces);
-        }
-
-        if (!this.asteroidGroup.countLiving()) {
-            game.time.events.add(Phaser.Timer.SECOND * 3, this.nextLevel, this);
-        }
-    },
-
-    checkBoundaries: function (sprite) {
-        if (sprite.x < 0) {
-            sprite.x = gameProperties.screenWidth;
-            sprite.y = Math.random() * gameProperties.screenHeight;
-        }
-    },
-
-    nextLevel: function () {
-        this.asteroidGroup.removeAll(true);
-
-        if (this.asteroidsCount < asteroidProperties.maxAsteroids) {
-            this.asteroidsCount += asteroidProperties.incrementAsteroids;
-        }
-
-        this.resetAsteroids();
-    },
-
-    setEventHandlers: function () {
-        socket.on("connect", this.onSocketConnected);
-        socket.on("disconnect", this.onSocketDisconnect);
-        socket.on("newPlayer", this.onNewPlayer);
-        socket.on("movePlayer", this.onMovePlayer);
-        socket.on("shooterFired", this.onShooterFired);
-        socket.on("roleAssigned", this.onRoleAssigned);
-    },
-
-    onSocketConnected: function () {
-        console.log("Connected to socket server");
-    },
-
-    onSocketDisconnect: function () {
-        console.log("Disconnected from socket server");
-    },
-
-    onNewPlayer: function (data) {
-        console.log("New player connected: " + data.id);
-    },
-
-    onMovePlayer: function (data) {
-        if (data.role == "shooter") {
-            playerOne.x = data.x;
-            playerOne.y = data.y;
+        else if (paddleLeft_down.isDown) {
+            playerTwo.body.velocity.y = gameProperties.paddleVelocity;
         } else {
-            playerTwo.x = data.x;
-            playerTwo.y = data.y;
+            playerTwo.body.velocity.y = 0;
         }
-    },
+        socket.emit('movePlayer', {role: "defender", x: playerTwo.x, y: playerTwo.y})
+    }
+}
 
-    onShooterFired: function () {
+function fire() {
+    if (paddleLeft_fire.isDown && role == "shooter" && paddleLives > 0) {
         var bullet = playerOneBulletGroup.getFirstExists(false);
+
         if (bullet) {
             bullet.reset(playerOne.x + 8, playerOne.y);
             bullet.body.velocity.x = 400;
             bullet.lifespan = bulletProperties.lifeSpan;
         }
-    },
+        socket.emit('shooterFired');
+    }
+}
 
-    onRoleAssigned: function (data) {
-        if (data.id == socket.socket.sessionid) {
-            role = data.role;
-        }
-    },
+function resetAsteroids(data) {
+    for (var i = 0; i < asteroidCount; i++) {
+        var x;
+        var y;
 
-    updateScore: function (points) {
-        score += points;
-        this.tf_score.text = score;
+        x = gameProperties.screenWidth;
+        y = data[i] * game.world.centerY;
+
+        createAsteroid(x, y, graphicAssets.asteroidLarge.name);
+    }
+}
+
+function createAsteroid(x, y, size, pieces) {
+    if (pieces === undefined) {
+        pieces = 1;
+    }
+    for (var i = 0; i < pieces; i++) {
+        var asteroid = asteroidGroup.create(x, y, size);
+        asteroid.reset(x, y);
+        asteroid.body.velocity.x = -200;
+    }
+}
+
+function blockAsteroid(target, asteroid) {
+    asteroid.kill();
+    splitAsteroid(asteroid);
+    updateScore(asteroidProperties[asteroid.key].score);
+}
+
+function asteroidCollision(target, asteroid) {
+    target.kill();
+    asteroid.kill();
+    splitAsteroid(asteroid);
+
+    if (target.key == graphicAssets.paddle.name) {
+        destroyPaddle();
+    }
+    updateScore(asteroidProperties[asteroid.key].score);
+}
+
+function destroyPaddle() {
+    paddleLives--;
+    tf_lives.text = paddleLives;
+    if (paddleLives) {
+        resetPaddle();
+    }
+}
+
+function resetPaddle() {
+    playerOne.reset(gameProperties.paddleLeft_x, game.world.centerY);
+}
+
+function splitAsteroid(asteroid) {
+    if (asteroidProperties[asteroid.key].nextSize) {
+        createAsteroid(gameProperties.screenWidth, randomNumbers[randomNumberCount] * gameProperties.screenHeight, asteroidProperties[asteroid.key].nextSize, asteroidProperties[asteroid.key].pieces);
     }
 
-};
+    if (!asteroidGroup.countLiving()) {
+        game.time.events.add(Phaser.Timer.SECOND * 3, nextLevel, this);
+    }
 
-var game = new Phaser.Game(gameProperties.screenWidth, gameProperties.screenHeight, Phaser.AUTO, 'gameDiv');
-game.state.add('main', mainState);
-game.state.start('main');
+    incrementRandomNumberCount();
+}
+
+function checkBoundaries(sprite) {
+    if (sprite.x < 0) {
+        sprite.x = gameProperties.screenWidth;
+        sprite.y = randomNumbers[randomNumberCount] * gameProperties.screenHeight;
+    }
+    incrementRandomNumberCount();
+}
+
+function incrementRandomNumberCount() {
+    if(randomNumberCount == randomNumbers.length){
+        randomNumberCount = 0;
+    } else{
+        randomNumberCount++;
+    }
+}
+
+function nextLevel() {
+    asteroidGroup.removeAll(true);
+
+    if (asteroidCount < asteroidProperties.maxAsteroids) {
+        asteroidCount += asteroidProperties.incrementAsteroids;
+    }
+
+    socket.emit("startGame", {number: asteroidCount});
+}
+
+function onSocketConnected() {
+    console.log("Connected to socket server");
+}
+
+function onSocketDisconnect() {
+    console.log("Disconnected from socket server");
+}
+
+function onNewPlayer(data) {
+    console.log("New player connected: " + data.id);
+}
+
+function onMovePlayer(data) {
+    if (data.role == "shooter") {
+        playerOne.x = data.x;
+        playerOne.y = data.y;
+    } else {
+        playerTwo.x = data.x;
+        playerTwo.y = data.y;
+    }
+}
+
+function onShooterFired() {
+    var bullet = playerOneBulletGroup.getFirstExists(false);
+    if (bullet) {
+        bullet.reset(playerOne.x + 8, playerOne.y);
+        bullet.body.velocity.x = 400;
+        bullet.lifespan = bulletProperties.lifeSpan;
+    }
+}
+
+function onRoleAssigned(data) {
+    if (data.id == socket.socket.sessionid) {
+        role = data.role;
+        if (role == "defender") {
+            socket.emit("startGame", {number: asteroidCount});
+        }
+    }
+}
+
+function startGame(data) {
+    randomNumbers = data.randomNumbers;
+    resetAsteroids(data.randomNumbers);
+}
+
+function updateScore(points) {
+    score += points;
+    tf_score.text = score;
+}

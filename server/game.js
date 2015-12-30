@@ -49,23 +49,24 @@ function setEventHandlers() {
 function onSocketConnection(client) {
     logger.info("New client has connected: " + client);
 
-    if(playerCount > 0) {
+    if (playerCount > 0) {
         defender = client.id;
         logger.info("Player given role of defender");
         this.emit("roleAssigned", {id: client.id, role: "defender"});
     } else {
         shooter = client.id;
         logger.info("Player given role of shooter");
-        this.emit("roleAssigned", {id: client.id, role:"shooter"});
+        this.emit("roleAssigned", {id: client.id, role: "shooter"});
     }
 
     playerCount++;
     client.on('newPlayer', onNewPlayer);
     client.on("movePlayer", onMovePlayer);
     client.on("shooterFired", onShooterFired);
+    client.on("startGame", generateRandomNumbers);
 }
 
-function onNewPlayer (data) {
+function onNewPlayer(data) {
     logger.info("New remote player joined!");
 }
 
@@ -77,4 +78,14 @@ function onMovePlayer(data) {
 function onShooterFired() {
     // Broadcast updated position to connected socket clients
     this.broadcast.emit('shooterFired')
+}
+
+function generateRandomNumbers(data) {
+    logger.info("StartGame called");
+    var randomNumbers = [];
+    for (var i = 0; i < data.number; i++) {
+        randomNumbers.push(Math.random());
+    }
+    this.emit('startGame', {randomNumbers: randomNumbers});
+    this.broadcast.emit('startGame', {randomNumbers: randomNumbers});
 }
