@@ -11,6 +11,7 @@ var paddleLeft_fire;
 var randomNumberCount = 0;
 var randomNumbers = [];
 var isGameOver = false;
+var level = 1;
 
 var fontAssets = {
     counterFontStyle: {font: '20px Arial', fill: '#FFFFFF', align: 'center'},
@@ -45,7 +46,7 @@ var graphicAssets = {
 
 var asteroidProperties = {
     startingAsteroids: 4,
-    maxAsteroids: 7,
+    maxAsteroids: 12,
     incrementAsteroids: 1,
     asteroidMedium: {
         minVelocity: 50,
@@ -220,7 +221,15 @@ function resetAsteroids(data) {
 function createAsteroid(x, y, size) {
     var asteroid = asteroidGroup.create(x, y, size);
     asteroid.reset(x, y);
-    asteroid.body.velocity.x = -200;
+
+    var velocity = randomNumbers[randomNumberCount] * -200 * (level * 0.1);
+
+    console.log(velocity);
+    if(isNaN(velocity)) {
+        velocity = -200;
+    }
+    asteroid.body.velocity.x = velocity;
+    incrementRandomNumberCount();
 }
 
 function blockAsteroid(target, asteroid) {
@@ -279,6 +288,7 @@ function checkBoundaries(sprite) {
     if (sprite.x < 0) {
         sprite.x = gameProperties.screenWidth;
         sprite.y = randomNumbers[randomNumberCount] * gameProperties.screenHeight;
+        sprite.velocity = randomNumberCount * 100;
         incrementRandomNumberCount();
     }
 }
@@ -355,6 +365,7 @@ function startGame(data) {
     if (text_status != undefined) {
         text_status.destroy();
     }
+    level = 1;
     score = 0;
     text_score.text = score;
     paddleLives = 5;
@@ -372,6 +383,7 @@ function startNextLevel(data) {
     asteroidGroup.removeAll();
     randomNumbers = data.randomNumbers;
     resetAsteroids(data.randomNumbers);
+    level++;
     console.log("randomNumbers for new level: " + randomNumbers);
 }
 

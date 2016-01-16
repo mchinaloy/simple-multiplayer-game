@@ -116,7 +116,7 @@ function onShooterFired() {
 function generateRandomNumbers(data) {
     var randomNumbers = [];
     for (var i = 0; i < data.number; i++) {
-        randomNumbers.push(Math.random().toFixed(1));
+        randomNumbers.push((Math.random() + 0.1).toFixed(1));
     }
     return randomNumbers;
 }
