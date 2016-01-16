@@ -49,43 +49,74 @@ function setEventHandlers() {
 function onSocketConnection(client) {
     logger.info("New client has connected: " + client);
 
-    if (playerCount > 0) {
+    if (playerCount == 1) {
         defender = client.id;
         logger.info("Player given role of defender");
         this.emit("roleAssigned", {id: client.id, role: "defender"});
-    } else {
+        setupNewUser(client);
+    } else if (playerCount == 0) {
         shooter = client.id;
         logger.info("Player given role of shooter");
         this.emit("roleAssigned", {id: client.id, role: "shooter"});
+        this.emit("waitForPlayers");
+        setupNewUser(client);
+    } else {
+        logger.info("Player given role of spectator");
+        this.emit("roleAssigned", {id: client.id, role: "spectator"});
     }
-
-    playerCount++;
-    client.on('newPlayer', onNewPlayer);
-    client.on("movePlayer", onMovePlayer);
-    client.on("shooterFired", onShooterFired);
-    client.on("startGame", generateRandomNumbers);
 }
 
-function onNewPlayer(data) {
-    logger.info("New remote player joined!");
+function onSocketDisconnection() {
+    logger.info("Client has disconnected: " + this.id);
+
+    if (playerCount != 1) {
+        gameOver();
+    }
+
+    this.broadcast.emit("onPlayerDisconnected");
+}
+
+function setupNewUser(client) {
+    playerCount = playerCount + 1;
+    client.on("startGame", startGame);
+    client.on("startNextLevel", startNextLevel);
+    client.on("movePlayer", onMovePlayer);
+    client.on("shooterFired", onShooterFired);
+    client.on("gameOver", gameOver);
+    client.on("disconnect", onSocketDisconnection);
+}
+
+function startGame(data) {
+    logger.info("startGame");
+    var randomNumbers = generateRandomNumbers(data);
+    this.emit('startGame', {randomNumbers: randomNumbers});
+    this.broadcast.emit('startGame', {randomNumbers: randomNumbers});
+}
+
+function startNextLevel(data) {
+    logger.info("startNextLevel");
+    var randomNumbers = generateRandomNumbers(data);
+    this.emit('startNextLevel', {randomNumbers: randomNumbers});
+    this.broadcast.emit('startNextLevel', {randomNumbers: randomNumbers});
+}
+
+function gameOver() {
+    logger.info("gameOver");
+    playerCount = 0;
 }
 
 function onMovePlayer(data) {
-    // Broadcast updated position to connected socket clients
     this.broadcast.emit('movePlayer', {role: data.role, x: data.x, y: data.y})
 }
 
 function onShooterFired() {
-    // Broadcast updated position to connected socket clients
     this.broadcast.emit('shooterFired')
 }
 
 function generateRandomNumbers(data) {
-    logger.info("StartGame called");
     var randomNumbers = [];
     for (var i = 0; i < data.number; i++) {
-        randomNumbers.push(Math.random());
+        randomNumbers.push(Math.random().toFixed(1));
     }
-    this.emit('startGame', {randomNumbers: randomNumbers});
-    this.broadcast.emit('startGame', {randomNumbers: randomNumbers});
+    return randomNumbers;
 }

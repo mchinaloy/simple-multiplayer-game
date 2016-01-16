@@ -4,11 +4,20 @@
         <title>AstroPong</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="http://192.168.1.13:8000/socket.io/socket.io.js"></script>
+        <script src="http://192.168.1.16:8000/socket.io/socket.io.js"></script>
         <script src="js/phaser.min.js"></script>
+        <link rel="stylesheet" type="text/css" href="css/stylesheet.css">
     </head>
-    <body>
+    <body background="assets/pageBackground.jpg">
         <script src="js/game.js"></script>
-        <div id="gameDiv"> </div>
+        <h1 class="centerHeader">AstroPong</h1>
+        <p>
+            <ol class="centerText">
+                <li>One Shooter and One Defender (Max two players)</li>
+                <li>The Defender is invulnerable so protect your Shooter at all costs!</li>
+                <li>To play again after Game Over, please refresh</li>
+            </ol>
+        </p>
+        <div id="gameDiv" class="centered"> </div>
     </body>
 </html>

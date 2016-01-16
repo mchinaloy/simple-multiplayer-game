@@ -1,0 +1,26 @@
+.centered {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    /* bring your own prefixes */
+    transform: translate(-50%, -50%);
+    border:1px solid black;
+}
+.centerHeader
+{
+    width: 200px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    color: white;
+    font-family: "Arial", Arial, sans-serif;
+}
+.centerText
+{
+    width: 500px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    color: white;
+    font-family: "Arial", Arial, sans-serif;
+}
