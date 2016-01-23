@@ -8,14 +8,6 @@ A simple multiplayer game that combines two classic games: Pong and Asteroids. T
 4. [Supervisord](http://supervisord.org/)
 
 ===================
-Running in the cloud
-===================
-
-Hosted on [Google Compute Engine](https://cloud.google.com/compute/)
-
-http://104.155.19.241:8000/
-
-===================
 Running locally
 ===================
 
@@ -35,3 +27,11 @@ Once you have done this you can simply run:
 followed by: 
 
 ``` npm start ```
+
+===================
+Running in the cloud
+===================
+
+Hosted on [Google Compute Engine](https://cloud.google.com/compute/)
+
+http://104.155.19.241:8000/
