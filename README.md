@@ -1,4 +1,4 @@
-# SimpleMultiplayerGame
+# simple-multiplayer-game
 
 A simple multiplayer game that combines two classic games: Pong and Asteroids. Technologies used:
 
